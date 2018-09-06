@@ -12,6 +12,9 @@ import config
 from sessionHandler import DeviceHandler, OptionHandler
 ###############################################
 
+# def printWorker(devices):
+
+
 def processWorker(devices):
 	for device in devices:
 		if device.globalConfig.test:
@@ -108,7 +111,7 @@ def createDeviceObject(option):
 			if option.debug:
 				print ("DEBUG: cmdlist variable")
 				pprint.pprint(cmdlist)
-			device = DeviceHandler(host_ip, user, password, option, cmdlist, params)
+			device = DeviceHandler(ip_addr=host_ip, username=user, password=password, globalConfig=option, cmd=cmdlist, params=params)
 			all_devices[i % option.thread].append(device)
 
 	### in case IP ADDR less than THREAD
@@ -118,15 +121,28 @@ def createDeviceObject(option):
 		for i in range(len(ip_addr_list)):
 			all_devices.append([])
 		for i in range(len(ip_addr_list)):
-			host,user,password,port,workbook,params = purifyParameter(ip_addr_list[i],option)
+			host_ip,user,password,port,workbook,params = purifyParameter(ip_addr_list[i],option)
 			cmdlist = createCommandList(workbook, option)
 			if option.debug:
 				print ("DEBUG: cmdlist variable")
 				pprint.pprint(cmdlist)
-			device = DeviceHandler(host_ip, user, password, cmdlist, params, option)
+			device = DeviceHandler(ip_addr=host_ip, username=user, password=password, globalConfig=option, cmd=cmdlist, params=params)
 			all_devices[i].append(device)
 
+			# print (option)
+		# pprint.pprint (all_devices[0][0].rawCMD)
+
 	return all_devices
+
+def makeOutput(devices, option):
+	if option.outPerHost:
+		for device_per_thread in devices:
+			for device in device_per_thread:
+				if not device.isError: 
+					with open(device.globalConfig.outputPath.rstrip('/')+"/"+device.host_name.replace('/','_').replace(':','_')+'.txt' , 'w') as f:
+						for line in device.output:
+							f.write(line.strip() + '\n')
+						f.close()
 
 
 def main(option):
@@ -146,13 +162,14 @@ def main(option):
 	# wait for all threads complete
 	for t in threads:
 		t.join()
+	makeOutput(device_object_list, option)
 
 
 if __name__ == '__main__':
 	### args parser
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--host', action="store", dest='IP_HOST', default='', help='Ip address of target host. Have to set default user and password in config.py')
-	parser.add_argument('--host.file', action="store", dest='IP_FILE', default='', help='Name of file in host directory containing set of ip address')
+	parser.add_argument('--host-file', action="store", dest='IP_FILE', default='', help='Name of file in host directory containing set of ip address')
 	parser.add_argument('-d','--debug', action="store_true", dest='DEBUG_MODE', default=False, help='Enable Debug mode: in this mode will show all debug output')
 	parser.add_argument('-t','--test', action="store_true", dest='TEST_MODE', default=False, help='Enable test mode: in this mode automator will check the connection and show the command that will be pushed into device but does not do it')
 	parser.add_argument('-T','--thread', action="store", dest='MAX_THREAD', default=1, type=int, help='Number of threads')
@@ -161,7 +178,8 @@ if __name__ == '__main__':
 	parser.add_argument('--raw', action="store", dest='RAW_CMD', default='', help="Directly inject the command to device.")
 	parser.add_argument('-w','--workbook', action="store", dest='WORKBOOK', default='', help='Specific Workbook filename to use')
 	parser.add_argument('--version', action="store_true", dest='VERSION', default=False, help='Show version of script')
-	parser.add_argument('--output', action="store", dest='OUT_PATH', default='', help='Output file path')
+	parser.add_argument('--output', action="store", dest='OUT_PATH', default='./', help='Output file path')
+	parser.add_argument('--output-per-host', action="store_true", dest='OUT_PER_HOST', default=False, help='Output file path')
 	args = parser.parse_args()
 	# print args
 	if args.VERSION:
@@ -169,10 +187,16 @@ if __name__ == '__main__':
 		print("Written by Nuttawut Ueasaksupa")
 		exit()
 	###
+	if args.MAX_THREAD > 1 and not args.SILENT_MODE :
+		silent = True
+	elif args.SILENT_MODE:
+		silent = True
+	else:
+		silent = False
 	option = {
         "HOST_IP"          : args.IP_HOST,
         "HOST_FILE"        : args.IP_FILE,
-        "SILENT_MODE"      : args.SILENT_MODE,
+        "SILENT_MODE"      : silent,
         "DEBUG_MODE"       : args.DEBUG_MODE,
         "TEST_MODE"        : args.TEST_MODE,
         "MAX_THREAD"       : args.MAX_THREAD,
@@ -180,7 +204,8 @@ if __name__ == '__main__':
         "RAW_CMD"          : args.RAW_CMD,
         "WORKBOOK"         : args.WORKBOOK,
         "DATETIME"         : datetime.datetime.now().strftime('%Y%m%d_%H%M'),
-		"OUTPUT"           : args.OUT_PATH
+		"OUTPUT"           : args.OUT_PATH,
+		"OUT_PER_HOST"     : args.OUT_PER_HOST
 	}
 	
 	globalConfig = OptionHandler(option)

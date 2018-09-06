@@ -25,6 +25,7 @@ class OptionHandler(object):
 		self.workbook     = option['WORKBOOK']
 		self.datetime     = option['DATETIME']    
 		self.outputPath   = option['OUTPUT']    
+		self.outPerHost   = option['OUT_PER_HOST']    
 
 class DeviceHandler(object):
 	"""docstring for DevicesHandler"""
@@ -40,7 +41,7 @@ class DeviceHandler(object):
 		self.cmd          = cmd
 		self.isConnect    = False
 		self.isError      = False
-		self.output       = ""
+		self.output       = []
 		self.globalConfig = globalConfig
 
 	def connect(self,port=23,timeout=20):
@@ -60,21 +61,29 @@ class DeviceHandler(object):
 			nodename = str(expect_ret[1].group(1).strip(), 'ascii')
 			connection_object.write(b"terminal length 0\n")
 			connection_object.expect([config.PROMPT_RE.encode('ascii')],timeout)
-			if self.globalConfig.debug:
-				print ("Connection to",nodename,"established port:",port)
+			connection_object.write(b"terminal width 0\n")
+			connection_object.expect([config.PROMPT_RE.encode('ascii')],timeout)
+
 			self.host_name = nodename
 			self.prompt = prompt
 			self.isConnect = True
 			self.conn = connection_object
+			print ('\r\n'+'*'*(self.globalConfig.termWidth - 50 - len(self.host_name)),"Connected to",self.host_name,'*'*35)
+
+			if not self.globalConfig.silent:
+				print (self.prompt, end='')
+			if self.globalConfig.debug:
+				print ("Connection to",nodename,"established port:",port)
+			
 		except Exception as e:
 			self.isError = True
+			print ('\r\n'+'*'*(self.globalConfig.termWidth - 50 - len(self.ip_addr)),"ERROR Cannot Connect to ",self.ip_addr,'*'*23)
 			print (e)
 
 	def run(self):
 		if not self.isConnect:
 			self.connect()
-			print ('\r\n'+'*'*(self.globalConfig.termWidth - 50 - len(self.host_name)),"Connected to",self.host_name,'*'*35)
-		
+
 		for instruction in self.cmd:
 			if 'exec' in instruction:
 				self.__exec_node(instruction['exec'])
@@ -88,14 +97,15 @@ class DeviceHandler(object):
 			output_array = re.findall(pattern, text)
 			if self.globalConfig.debug:
 				print('DEBUG: RAW OUTPUT',[text])
+			self.output.extend(list(filter(lambda a: a != '', output_array)))
 			# if not self.globalConfig.silent:
 			# 	for line in output_array[:-2]:
 			# 		if line != '':
 			# 			print (line.strip())
 			# 	print (output_array[-2], end='')
 
-	def __sendCommand(self, connection, command_string, promptRE=''):
-		DEFAULT_TIMEOUT = 10 #second
+	def __sendCommand(self, connection, command_string, promptRE='', realTimeRead=False):
+		DEFAULT_TIMEOUT = 30 #second
 		READ_WAIT_TIME  = 0.2 #second
 		if self.globalConfig.test:
 			print('---',command_string)
@@ -105,19 +115,25 @@ class DeviceHandler(object):
 			if promptRE == '':
 				promptRE = r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]'
 			connection.write(command_string.encode('ascii') + b"\n")
-			for i in range(int(DEFAULT_TIMEOUT/READ_WAIT_TIME)):
-				time.sleep(READ_WAIT_TIME)
-				out = str(connection.read_very_eager(), 'ascii').strip()
-				if out != '':
-					output += out
-					sys.stdout.write(out)
-					sys.stdout.flush()
-				if promptRE == '':
-					if re.search(r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]', out):
-						break
-				else:
-					if re.search(promptRE, out):
-						break
+			if realTimeRead:
+				for i in range(int(DEFAULT_TIMEOUT/READ_WAIT_TIME)):
+					time.sleep(READ_WAIT_TIME)
+					out = str(connection.read_very_eager(), 'ascii').strip()
+					if out != '':
+						output += out
+						if not self.globalConfig.silent:
+							sys.stdout.write(out)
+							sys.stdout.flush()
+					if promptRE == '':
+						if re.search(r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]', out):
+							break
+					else:
+						if re.search(promptRE, out):
+							break
+			else:
+				output = str(connection.expect([promptRE.encode('ascii')],DEFAULT_TIMEOUT)[2], 'ascii')
+				if not self.globalConfig.silent:
+					print (output, end='')
 			# for netmiko # future feature
 			# elif config.CON_PROTO == 'ssh':
 				# timeout is 8 sec.
@@ -146,6 +162,9 @@ class DeviceHandler(object):
 		expect_string = r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]'
 		filter_word = r'.*'
 		delay_value = 0
+		realTimeRead = False
+		if 'realTimeRead' in instruction:
+			realTimeRead = instruction['realTimeRead']
 		if 'expect' in instruction:
 			expect_string = instruction['expect']
 		if 'delay' in instruction:
@@ -155,7 +174,7 @@ class DeviceHandler(object):
 		for cmd in instruction['cmd']:
 			if self.globalConfig.debug:
 				print ("DEBUG: EXPECT STRING",expect_string)
-			output = self.__sendCommand(self.conn, self.__inlineReplaceCommand(cmd,iterator), expect_string)
+			output = self.__sendCommand(connection=self.conn, command_string=self.__inlineReplaceCommand(cmd,iterator), promptRE=expect_string, realTimeRead=realTimeRead)
 			self.__outputPreprocess(output, filter_word)
 			if delay_value > 0:
 				if not self.globalConfig.silent:
