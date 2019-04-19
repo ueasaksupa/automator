@@ -110,7 +110,7 @@ class DeviceHandler(object):
 					if 'text' in column:
 						output +=  self.__inlineReplaceCommand(column['text']) + '\t'
 					elif 'regex' in column:
-						m = re.match(column['regex'],text)
+						m = re.search(column['regex'],text)
 						if m:
 							output += m.group() + '\t'
 				self.output.append(output.rstrip('\t'))
