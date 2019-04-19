@@ -1,0 +1,39 @@
+- exec:
+    expect: "#$AS.*"
+    filter word: "XXXX"
+    cmd:
+      - cmd1
+      - cmd2
+- exec:
+    delay: 3000
+    cmd:
+      - cmd3
+      - cmd4
+- exec:
+    # exec with param from host file
+    cmd:
+      - cmd5{0}
+      - cmd6{1}
+- exec:
+    cmd:
+      - cmd7
+      - cmd8
+- loop:
+    from: 2
+    to : 4
+    stop: 1
+    loop-exec:
+    - exec: 
+       cmd:
+        - cmd9
+        - cmd10
+    - exec:
+       cmd:
+         - cmd11
+         - cmd12
+- if:
+    cmd: "cmdX"
+    contain: "someword"
+    then:
+      - cmd11
+      - cmd12

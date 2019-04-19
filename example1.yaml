@@ -1,0 +1,14 @@
+- loop:
+    from: 2
+    to : 4
+    stop: 1
+    delay: 100
+    loop-exec:
+    - exec: 
+       cmd:
+        - cmd9-{iterator}
+        - cmd10-{iterator}
+    - exec:
+       cmd:
+         - cmd11
+         - cmd12

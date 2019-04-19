@@ -1,0 +1,19 @@
+- exec:
+    cmd:
+      - cmd7
+- loop:
+    from: 3
+    to : 5
+    step: 1
+    cmd :
+      - cmd9-{iterator}
+      - cmd10-{iterator}
+- if:
+    cmd: "cmdX"
+    contain: "someword"
+    then:
+      - cmd11
+      - cmd12
+    else:
+      - cmd13
+      - cmd14
