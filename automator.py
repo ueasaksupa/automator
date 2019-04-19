@@ -161,6 +161,8 @@ def createDeviceObject(option):
 
 def makeOutput(devices, option):
 	if option.outPerHost and option.outputPath:
+		if option.debug:
+			print ("DEBUG: executing makeOuput per host")
 		for device_per_thread in devices:
 			for device in device_per_thread:
 				if not device.isError: 
@@ -169,7 +171,9 @@ def makeOutput(devices, option):
 							f.write(line.strip() + '\n')
 						f.close()
 	elif option.outputPath:
-		with open(option.outputPath.rstrip('/')+"output.txt", 'w') as f:
+		if option.debug:
+			print ("DEBUG: executing makeOuput one file")
+		with open(option.outputPath.rstrip('/')+"/"+"output.txt", 'w') as f:
 			for device_per_thread in devices:
 				for device in device_per_thread:
 					if not device.isError: 

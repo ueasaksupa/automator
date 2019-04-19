@@ -114,11 +114,17 @@ class DeviceHandler(object):
 						if m:
 							output += m.group(0) + '\t'
 				self.output.append(output)
+				if self.globalConfig.debug:
+					print ("DEBUG: executing outputPreprocess with option")
+					print ("DEBUG:",self.output)
 			else:
 				output_array = re.findall(pattern, text)
 				if self.globalConfig.debug:
 					print('DEBUG: RAW OUTPUT',[text])
 				self.output.extend(list(filter(lambda a: a != '', output_array)))
+				if self.globalConfig.debug:
+					print ("DEBUG: executing outputPreprocess default")
+					print ("DEBUG:",self.output)
 			# if not self.globalConfig.silent:
 			# 	for line in output_array[:-2]:
 			# 		if line != '':
