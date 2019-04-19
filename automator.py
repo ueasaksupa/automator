@@ -3,17 +3,42 @@ import threading
 import re
 import sys
 import os
+import time
 import datetime
 import argparse
 ####
 import yaml
 import pprint
 import config
+import curses
 from sessionHandler import DeviceHandler, OptionHandler
 ###############################################
 
-# def printWorker(devices):
+def isAllDevicesFinished(allDevices):
+	for device_per_thread in allDevices:
+		for device in device_per_thread:
+			if device.isRunning:
+				return False
+	return True
 
+def printWorker(allDevices):
+	stdscr = curses.initscr()
+	curses.noecho()
+	curses.cbreak()
+	while True:
+		nodeIndex = 0
+		time.sleep(0.5)
+		if isAllDevicesFinished(allDevices):
+			break
+		for device_per_thread in allDevices:
+			for device in device_per_thread:
+				printline = "Connected to {0}. \tProgress |>{1}".format(device.hostname, device.runningCmd)
+				stdscr.addstr(nodeIndex, 0, printline+" "*(device.globalConfig.termWidth - len(printline)))
+				nodeIndex += 1
+		stdscr.refresh()
+	curses.echo()
+	curses.nocbreak()
+	curses.endwin()
 
 def processWorker(devices):
 	for device in devices:
@@ -139,7 +164,7 @@ def makeOutput(devices, option):
 		for device_per_thread in devices:
 			for device in device_per_thread:
 				if not device.isError: 
-					with open(device.globalConfig.outputPath.rstrip('/')+"/"+device.host_name.replace('/','_').replace(':','_')+'.txt' , 'w') as f:
+					with open(device.globalConfig.outputPath.rstrip('/')+"/"+device.hostname.replace('/','_').replace(':','_')+'.txt' , 'w') as f:
 						for line in device.output:
 							f.write(line.strip() + '\n')
 						f.close()
@@ -159,10 +184,19 @@ def main(option):
 		threads.append(t)
 		t.start()
 		threadCounter += 1
+
+	### Real-time printer thread in case running more than 1 thread
+	if option.thread > 1:
+		t = threading.Thread(target=printWorker, args=(device_object_list,))
+		threads.append(t)
+		t.start()
+		threadCounter += 1
+
 	# wait for all threads complete
 	for t in threads:
 		t.join()
-	makeOutput(device_object_list, option)
+	if not option.test:
+		makeOutput(device_object_list, option)
 
 
 if __name__ == '__main__':
@@ -178,7 +212,7 @@ if __name__ == '__main__':
 	parser.add_argument('--raw', action="store", dest='RAW_CMD', default='', help="Directly inject the command to device.")
 	parser.add_argument('-w','--workbook', action="store", dest='WORKBOOK', default='', help='Specific Workbook filename to use')
 	parser.add_argument('--version', action="store_true", dest='VERSION', default=False, help='Show version of script')
-	parser.add_argument('--output', action="store", dest='OUT_PATH', default='./', help='Output file path')
+	parser.add_argument('-o','--output', action="store", dest='OUT_PATH', default='./', help='Output file path')
 	parser.add_argument('--output-per-host', action="store_true", dest='OUT_PER_HOST', default=False, help='Output file path')
 	args = parser.parse_args()
 	# print args
