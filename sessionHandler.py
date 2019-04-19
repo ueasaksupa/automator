@@ -117,6 +117,7 @@ class DeviceHandler(object):
 				if self.globalConfig.debug:
 					print ("DEBUG: executing outputPreprocess with option")
 					print ("DEBUG:",self.output)
+					print ("DEBUG:",pprint.pprint(option))
 			else:
 				output_array = re.findall(pattern, text)
 				if self.globalConfig.debug:
