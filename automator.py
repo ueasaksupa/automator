@@ -160,7 +160,7 @@ def createDeviceObject(option):
 	return all_devices
 
 def makeOutput(devices, option):
-	if option.outPerHost:
+	if option.outPerHost and option.outputPath:
 		for device_per_thread in devices:
 			for device in device_per_thread:
 				if not device.isError: 
@@ -168,6 +168,14 @@ def makeOutput(devices, option):
 						for line in device.output:
 							f.write(line.strip() + '\n')
 						f.close()
+	elif option.outputPath:
+		with open(option.outputPath.rstrip('/')+"output.txt", 'w') as f:
+			for device_per_thread in devices:
+				for device in device_per_thread:
+					if not device.isError: 
+						for line in device.output:
+							f.write(line.strip() + '\n')
+			f.close()
 
 
 def main(option):
@@ -212,7 +220,7 @@ if __name__ == '__main__':
 	parser.add_argument('--raw', action="store", dest='RAW_CMD', default='', help="Directly inject the command to device.")
 	parser.add_argument('-w','--workbook', action="store", dest='WORKBOOK', default='', help='Specific Workbook filename to use')
 	parser.add_argument('--version', action="store_true", dest='VERSION', default=False, help='Show version of script')
-	parser.add_argument('-o','--output', action="store", dest='OUT_PATH', default='./', help='Output file path')
+	parser.add_argument('-o','--output', action="store", dest='OUT_PATH', default=False, help='Output file path')
 	parser.add_argument('--output-per-host', action="store_true", dest='OUT_PER_HOST', default=False, help='Output file path')
 	args = parser.parse_args()
 	# print args
