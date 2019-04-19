@@ -34,13 +34,15 @@ class DeviceHandler(object):
 		self.username     = username
 		self.password     = password
 		self.platform     = "cisco"
-		self.host_name    = ""
+		self.hostname     = ""
 		self.prompt       = ""
 		self.conn         = ""
 		self.params       = params
 		self.cmd          = cmd
+		self.runningCmd   = ""
 		self.isConnect    = False
 		self.isError      = False
+		self.isRunning    = True
 		self.output       = []
 		self.globalConfig = globalConfig
 
@@ -64,26 +66,31 @@ class DeviceHandler(object):
 			connection_object.write(b"terminal width 0\n")
 			connection_object.expect([config.PROMPT_RE.encode('ascii')],timeout)
 
-			self.host_name = nodename
+			self.hostname = nodename
 			self.prompt = prompt
 			self.isConnect = True
+			self.isRunning = True
 			self.conn = connection_object
-			print ('\r\n'+'*'*(self.globalConfig.termWidth - 50 - len(self.host_name)),"Connected to",self.host_name,'*'*35)
+			# print ('\r\n'+'*'*(self.globalConfig.termWidth - 50 - len(self.hostname)),"Connected to",self.hostname,'*'*35)
 
 			if not self.globalConfig.silent:
 				print (self.prompt, end='')
 			if self.globalConfig.debug:
 				print ("Connection to",nodename,"established port:",port)
 			
+			return True 
+
 		except Exception as e:
 			self.isError = True
+			self.isRunning = False
 			print ('\r\n'+'*'*(self.globalConfig.termWidth - 50 - len(self.ip_addr)),"ERROR Cannot Connect to ",self.ip_addr,'*'*23)
 			print (e)
+			return False
 
 	def run(self):
 		if not self.isConnect:
-			self.connect()
-
+			if not self.connect():
+				return False
 		for instruction in self.cmd:
 			if 'exec' in instruction:
 				self.__exec_node(instruction['exec'])
@@ -91,6 +98,8 @@ class DeviceHandler(object):
 				self.__loop_node(instruction['loop'])
 			elif 'if' in instruction:
 				self.__if_node(instruction['if'])
+		
+		self.isRunning = False
 
 	def __outputPreprocess(self, text, pattern):
 		if text.strip() != '':
@@ -105,15 +114,16 @@ class DeviceHandler(object):
 			# 	print (output_array[-2], end='')
 
 	def __sendCommand(self, connection, command_string, promptRE='', realTimeRead=False):
-		DEFAULT_TIMEOUT = 30 #second
+		DEFAULT_TIMEOUT = 180 #second
 		READ_WAIT_TIME  = 0.2 #second
+		self.runningCmd = command_string
 		if self.globalConfig.test:
 			print('---',command_string)
 			return ""
 		try:
 			output = ''
 			if promptRE == '':
-				promptRE = r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]'
+				promptRE = r'\r\n\r?\n?('+ self.hostname +r'[^ ]*)[#>]'
 			connection.write(command_string.encode('ascii') + b"\n")
 			if realTimeRead:
 				for i in range(int(DEFAULT_TIMEOUT/READ_WAIT_TIME)):
@@ -125,7 +135,7 @@ class DeviceHandler(object):
 							sys.stdout.write(out)
 							sys.stdout.flush()
 					if promptRE == '':
-						if re.search(r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]', out):
+						if re.search(r'\r\n\r?\n?('+ self.hostname +r'[^ ]*)[#>]', out):
 							break
 					else:
 						if re.search(promptRE, out):
@@ -151,7 +161,7 @@ class DeviceHandler(object):
 				cmd = cmd.replace('{'+str(position)+'}', str(self.params[int(position)]).strip())
 			except:
 				cmd = cmd.replace('{'+str(position)+'}', '')
-		cmd = cmd.replace('{host_name}', self.host_name)
+		cmd = cmd.replace('{hostname}', self.hostname.replace('/','_').replace(':','_'))
 		cmd = cmd.replace('{iterator}', str(iterator))
 		cmd = cmd.replace('{datetime}', self.globalConfig.datetime)
 		cmd = cmd.replace('{enter}', "")
@@ -159,7 +169,7 @@ class DeviceHandler(object):
 		return cmd
 
 	def __exec_node(self, instruction, iterator=0):
-		expect_string = r'\r\n\r?\n?('+ self.host_name +r'[^ ]*)[#>]'
+		expect_string = r'\r\n\r?\n?('+ self.hostname +r'[^ ]*)[#>]'
 		filter_word = r'.*'
 		delay_value = 0
 		realTimeRead = False
