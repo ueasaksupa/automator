@@ -90,7 +90,8 @@ class DeviceHandler(object):
 	def run(self):
 		if not self.isConnect:
 			if not self.connect():
-				return False
+				if not self.globalConfig.test:
+					return False
 		for instruction in self.cmd:
 			if 'exec' in instruction:
 				self.__exec_node(instruction['exec'])
@@ -101,12 +102,23 @@ class DeviceHandler(object):
 		
 		self.isRunning = False
 
-	def __outputPreprocess(self, text, pattern):
+	def __outputPreprocess(self, text, pattern, option=None):
 		if text.strip() != '':
-			output_array = re.findall(pattern, text)
-			if self.globalConfig.debug:
-				print('DEBUG: RAW OUTPUT',[text])
-			self.output.extend(list(filter(lambda a: a != '', output_array)))
+			if option != None:
+				output = ''
+				for column in option['column']:
+					if 'text' in column:
+						output +=  self.__inlineReplaceCommand(column['text']) + '\t'
+					elif 'regex' in column:
+						m = re.match(column['regex'],text)
+						if m:
+							output += m.group(0) + '\t'
+				self.output.append(output)
+			else:
+				output_array = re.findall(pattern, text)
+				if self.globalConfig.debug:
+					print('DEBUG: RAW OUTPUT',[text])
+				self.output.extend(list(filter(lambda a: a != '', output_array)))
 			# if not self.globalConfig.silent:
 			# 	for line in output_array[:-2]:
 			# 		if line != '':
@@ -181,17 +193,22 @@ class DeviceHandler(object):
 			delay_value = instruction['delay']
 		if 'filter word' in instruction:
 			filter_word = instruction['filter word']
-		for cmd in instruction['cmd']:
+		for cmd in instruction['commands']:
 			if self.globalConfig.debug:
 				print ("DEBUG: EXPECT STRING",expect_string)
-			output = self.__sendCommand(connection=self.conn, command_string=self.__inlineReplaceCommand(cmd,iterator), promptRE=expect_string, realTimeRead=realTimeRead)
-			self.__outputPreprocess(output, filter_word)
+			if type(cmd) == str:
+				output = self.__sendCommand(connection=self.conn, command_string=self.__inlineReplaceCommand(cmd,iterator), promptRE=expect_string, realTimeRead=realTimeRead)
+				self.__outputPreprocess(output, filter_word)
+			elif type(cmd) == dict:
+				if self.globalConfig.debug:
+					print (cmd)
+				output = self.__sendCommand(connection=self.conn, command_string=self.__inlineReplaceCommand(cmd['command'],iterator), promptRE=expect_string, realTimeRead=realTimeRead)
+				self.__outputPreprocess(output, filter_word, cmd['outputModifier'])
 			if delay_value > 0:
 				if not self.globalConfig.silent:
 					print("\n*** Sleep",delay_value,"msec ***")
 				if not self.globalConfig.test:
 					time.sleep(delay_value/1000.0)
-
 
 	def __loop_node(self, instruction):
 		expect_string = config.PROMPT_RE
