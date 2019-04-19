@@ -112,8 +112,8 @@ class DeviceHandler(object):
 					elif 'regex' in column:
 						m = re.match(column['regex'],text)
 						if m:
-							output += m.group(0) + '\t'
-				self.output.append(output)
+							output += m.group() + '\t'
+				self.output.append(output.rstrip('\t'))
 				if self.globalConfig.debug:
 					print ("DEBUG: executing outputPreprocess with option")
 					print ("DEBUG:",self.output)
